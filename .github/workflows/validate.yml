@@ -1,9 +1,11 @@
-name: Validate ESPHome firmware
+name: Validate ESPHome firmware and publish v1.0
 on:
   push:
     branches: [main]
   pull_request:
   workflow_dispatch:
+permissions:
+  contents: write
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -13,7 +15,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-          cache: pip
       - name: Install ESPHome 2026.11.0
         run: python -m pip install 'esphome==2026.11.0'
       - name: Create non-production CI secrets
@@ -30,9 +31,9 @@ jobs:
           with open('secrets.yaml', 'w') as out:
               yaml.safe_dump(values, out)
           PY
-      - name: Validate YAML and ESPHome configuration
+      - name: Validate ESPHome configuration
         run: esphome config plug-us_v1.yaml
-      - name: Compile reference firmware
+      - name: Compile firmware
         run: esphome compile plug-us_v1.yaml
       - name: Inspect compiled OTA image size
         run: |
@@ -41,3 +42,33 @@ jobs:
           bytes=$(wc -c < "$file")
           echo "OTA firmware: $bytes bytes"
           test "$bytes" -le 1835008
+      - name: Create GitHub v1.0 release after successful build
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view v1.0 >/dev/null 2>&1; then
+            echo "Release v1.0 already exists; leaving immutable release intact."
+            exit 0
+          fi
+          cat > /tmp/release-notes.md <<'EOF'
+          # Custom Firmware for ESP32-C3 Based Smart Plugs — v1.0
+
+          Initial stable source release for **ESP32-C3 smart plugs with Athom V3-compatible external hardware and GPIO assignments**. Tested on a reference Athom V3-profile smart plug with ESPHome 2026.11.0.
+
+          ## Highlights
+          - Local relay control, physical-button child lock and selectable power-on state
+          - CSE7766 electrical metering with daily and total energy monitoring
+          - Bluetooth stack switch, scanning preference and persistent next-boot proxy forwarding preference
+          - Encrypted native ESPHome OTA and local web-interface OTA
+          - Removed Athom-hosted update manifest and configuration import dependence
+          - Installation, hardware pinout, Bluetooth operation and partition-recovery documentation
+
+          ## Installation
+          Download the tagged source, configure local secrets from `secrets.example.yaml`, and follow `docs/INSTALLATION.md`. Verify **pinout and current rating** before flashing. Do not directly OTA over an incompatible Tasmota Safeboot partition layout.
+
+          **Compatibility:** Only Athom Plug V3-compatible ESP32-C3 external hardware is supported in this release. Other ESP32-C3 plugs are not assumed compatible.
+
+          **Security:** No user Wi-Fi credentials or production encryption keys are included in the release.
+          EOF
+          gh release create v1.0 --target "$GITHUB_SHA" --title "v1.0 — Custom Firmware for ESP32-C3 Based Smart Plugs" --notes-file /tmp/release-notes.md --latest
