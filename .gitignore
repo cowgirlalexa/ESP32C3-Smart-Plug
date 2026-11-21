@@ -1,0 +1,11 @@
+secrets.yaml
+**/secrets.yaml
+.esphome/
+.pioenvs/
+.piolibdeps/
+.platformio/
+*.bin
+*.elf
+*.map
+__pycache__/
+.DS_Store
