@@ -37,7 +37,7 @@ jobs:
         run: esphome compile plug-us_v1.yaml
       - name: Inspect compiled OTA image size
         run: |
-          file=$(find .esphome/build -type f -name firmware.bin | head -n 1)
+          file=$(find .esphome/build -type f -name firmware.ota.bin | head -n 1)
           test -n "$file"
           bytes=$(wc -c < "$file")
           echo "OTA firmware: $bytes bytes"
